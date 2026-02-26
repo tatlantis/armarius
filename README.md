@@ -140,12 +140,10 @@ Free forever. Build the future we want to see.
 
 ## About
 
-Created by **[Fred Giovannitti](https://github.com/tatlantis)**.
-
-Armarius was conceived, designed, and built in collaboration with Claude (Anthropic) — an experiment in what becomes possible when human intent and AI capability work together in real time. The architecture, the name, the positioning, and every line of code emerged from that conversation.
+Created by **[Fred Giovannitti](https://github.com/tatlantis)**, Polyetherea Labs — a subsidiary of Polyetherea INC.
 
 If you use Armarius in your work, a GitHub star or a mention goes a long way.
 
 ## License
 
-MIT © 2026 Fred Giovannitti
+MIT © 2026 Fred Giovannitti, Polyetherea Labs
