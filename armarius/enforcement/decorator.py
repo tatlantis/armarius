@@ -35,6 +35,7 @@ Usage:
 
 import functools
 from armarius.enforcement.channels import route_input, ChannelType
+from armarius.exceptions import SecurityError
 
 
 def protect(trusted_identity=None, allow_context=False):
@@ -64,27 +65,30 @@ def protect(trusted_identity=None, allow_context=False):
                 return func(processed.content, *args, **kwargs)
 
             else:
-                # Unsigned or invalid signature
                 warning = processed.metadata.get('warning', 'unknown')
                 reason = processed.metadata.get('reason', '')
 
+                # Tampered / invalid signature — hard block always,
+                # even when allow_context=True. A forged signature is an
+                # active attack, not ordinary unsigned external content.
                 if warning == 'invalid_signature':
-                    print(
-                        f"[Armarius] ❌ BLOCKED — Invalid signature "
-                        f"({reason}). Possible tampering attempt."
-                    )
-                else:
-                    print(
-                        f"[Armarius] ❌ BLOCKED — Unsigned input cannot "
-                        f"execute commands."
+                    raise SecurityError(
+                        f"[Armarius] BLOCKED — Invalid signature on "
+                        f"'{func.__name__}'. Reason: {reason}. "
+                        "Possible tampering attempt."
                     )
 
+                # Unsigned input with allow_context=True — pass as read-only
+                # ProcessedInput so the agent can still analyze the content.
                 if allow_context:
-                    # Pass the ProcessedInput to the agent as read-only context
                     return func(processed, *args, **kwargs)
 
-                # Default: block entirely, do not call the function
-                return None
+                # Default: hard block — raise so the pipeline cannot continue.
+                raise SecurityError(
+                    f"[Armarius] BLOCKED — Unsigned input cannot execute "
+                    f"'{func.__name__}'. A cryptographic CONTROL signature "
+                    "is required."
+                )
 
         return wrapper
     return decorator

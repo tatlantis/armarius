@@ -50,6 +50,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from armarius import TrustedIdentity, ChannelType
 from armarius.enforcement.channels import route_input
+from armarius.exceptions import SecurityError
 
 try:
     from langchain.agents import AgentExecutor as _AgentExecutorBase
@@ -202,28 +203,15 @@ class ShieldedAgentExecutor(_AgentExecutorBase):
 
             if warning == "invalid_signature":
                 reason = processed.metadata.get("reason", "unknown")
-                print(
-                    f"[Armarius] ❌ BLOCKED — Invalid signature ({reason}). "
-                    f"Possible tampering attempt. No tools were invoked."
+                raise SecurityError(
+                    f"[Armarius] BLOCKED — Invalid signature ({reason}). "
+                    "Possible tampering attempt. No tools were invoked."
                 )
-                return {
-                    "output": (
-                        f"[Armarius] Blocked: invalid signature ({reason}). "
-                        f"No tools were invoked."
-                    )
-                }
             else:
-                print(
-                    "[Armarius] ❌ BLOCKED — Unsigned input cannot invoke "
-                    "agent tools."
+                raise SecurityError(
+                    "[Armarius] BLOCKED — Unsigned input cannot invoke "
+                    "agent tools. A cryptographic CONTROL signature is required."
                 )
-                return {
-                    "output": (
-                        "[Armarius] Blocked: unsigned input cannot invoke "
-                        "agent tools. Sign your command with "
-                        "TrustedIdentity.sign_command() to proceed."
-                    )
-                }
 
         # Signed + verified — replace input with the extracted command string
         print(

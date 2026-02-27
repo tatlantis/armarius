@@ -22,6 +22,7 @@ from armarius.crypto.signature import TrustedIdentity, verify_signature
 from armarius.enforcement.channels import ChannelType, ProcessedInput, route_input
 from armarius.enforcement.decorator import protect
 from armarius.enforcement.processor import process_input
+from armarius.exceptions import SecurityError
 
 __version__ = "0.1.0"
 
@@ -33,4 +34,5 @@ __all__ = [
     "route_input",
     "protect",
     "process_input",
+    "SecurityError",
 ]

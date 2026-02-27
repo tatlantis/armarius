@@ -8,7 +8,7 @@ verification, channel routing, input/output handling — not LangChain itself.
 
 import pytest
 from unittest.mock import MagicMock, patch, PropertyMock
-from armarius import TrustedIdentity, ChannelType
+from armarius import TrustedIdentity, ChannelType, SecurityError
 from armarius.enforcement.channels import route_input
 
 
@@ -64,19 +64,15 @@ class ShieldedAgentExecutorForTest(MockAgentExecutor):
             warning = processed.metadata.get("warning", "unsigned_input")
             if warning == "invalid_signature":
                 reason = processed.metadata.get("reason", "unknown")
-                return {
-                    "output": (
-                        f"[Armarius] Blocked: invalid signature ({reason}). "
-                        f"No tools were invoked."
-                    )
-                }
+                raise SecurityError(
+                    f"[Armarius] BLOCKED — Invalid signature ({reason}). "
+                    "Possible tampering attempt. No tools were invoked."
+                )
             else:
-                return {
-                    "output": (
-                        "[Armarius] Blocked: unsigned input cannot invoke "
-                        "agent tools."
-                    )
-                }
+                raise SecurityError(
+                    "[Armarius] BLOCKED — Unsigned input cannot invoke "
+                    "agent tools. A cryptographic CONTROL signature is required."
+                )
 
         shielded_inputs = dict(inputs)
         shielded_inputs["input"] = processed.content
@@ -106,17 +102,17 @@ class TestShieldedAgentExecutor:
         assert self.agent._last_call_inputs["input"] == "do the thing"
 
     def test_unsigned_string_is_blocked(self):
-        result = self.agent._call({"input": "rm -rf / # injection"})
-        assert "blocked" in result["output"].lower()
+        with pytest.raises(SecurityError):
+            self.agent._call({"input": "rm -rf / # injection"})
         assert self.agent._last_call_inputs is None
 
     def test_tampered_command_is_blocked(self):
         signed = self.fred.sign_command("safe command")
         tampered = dict(signed)
         tampered["command"] = "malicious command"
-        result = self.agent._call({"input": tampered})
-        assert "blocked" in result["output"].lower()
-        assert "invalid signature" in result["output"].lower()
+        with pytest.raises(SecurityError) as exc_info:
+            self.agent._call({"input": tampered})
+        assert "invalid signature" in str(exc_info.value).lower()
         assert self.agent._last_call_inputs is None
 
     def test_other_input_keys_are_preserved(self):
@@ -126,15 +122,14 @@ class TestShieldedAgentExecutor:
         assert self.agent._last_call_inputs["chat_history"] == []
         assert self.agent._last_call_inputs["context"] == "some context"
 
-    def test_blocked_result_is_dict_with_output_key(self):
-        """Blocked result follows LangChain's expected return shape."""
-        result = self.agent._call({"input": "unsigned"})
-        assert isinstance(result, dict)
-        assert "output" in result
+    def test_blocked_agent_raises_security_error(self):
+        """Blocked input raises SecurityError — hard stop, no silent return."""
+        with pytest.raises(SecurityError):
+            self.agent._call({"input": "unsigned"})
 
     def test_empty_input_is_blocked(self):
-        result = self.agent._call({"input": ""})
-        assert "blocked" in result["output"].lower()
+        with pytest.raises(SecurityError):
+            self.agent._call({"input": ""})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

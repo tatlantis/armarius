@@ -3,7 +3,7 @@ Tests for channel separation and the @protect decorator.
 """
 
 import pytest
-from armarius import TrustedIdentity, protect, ChannelType, process_input
+from armarius import TrustedIdentity, protect, ChannelType, process_input, SecurityError
 from armarius.enforcement.channels import route_input
 
 
@@ -60,7 +60,7 @@ def test_signed_command_executes(capsys):
     assert results == ["do the thing"]
 
 
-def test_unsigned_string_is_blocked(capsys):
+def test_unsigned_string_is_blocked():
     fred = TrustedIdentity("fred")
     results = []
 
@@ -68,7 +68,8 @@ def test_unsigned_string_is_blocked(capsys):
     def agent(command):
         results.append(command)
 
-    agent("rm -rf / # injection")
+    with pytest.raises(SecurityError):
+        agent("rm -rf / # injection")
     assert results == []
 
 
@@ -84,19 +85,38 @@ def test_tampered_command_is_blocked():
     tampered = dict(signed)
     tampered["command"] = "unsafe command"
 
-    agent(tampered)
+    with pytest.raises(SecurityError):
+        agent(tampered)
     assert results == []
 
 
-def test_blocked_agent_returns_none():
+def test_blocked_agent_raises_security_error():
     fred = TrustedIdentity("fred")
 
     @protect(trusted_identity=fred)
     def agent(command):
         return "executed"
 
-    result = agent("unsigned input")
-    assert result is None
+    with pytest.raises(SecurityError):
+        agent("unsigned input")
+
+
+def test_tampered_command_raises_even_with_allow_context():
+    """Invalid/forged signature is always a hard block — even with allow_context=True."""
+    fred = TrustedIdentity("fred")
+    results = []
+
+    @protect(trusted_identity=fred, allow_context=True)
+    def agent(input_data):
+        results.append(input_data)
+
+    signed = fred.sign_command("legitimate task")
+    tampered = dict(signed)
+    tampered["command"] = "malicious task"
+
+    with pytest.raises(SecurityError):
+        agent(tampered)
+    assert results == []
 
 
 # ─────────────────────────────────────────────────────────────
